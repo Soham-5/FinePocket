@@ -5,6 +5,7 @@ import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../screens/dashboard_screen.dart';
 import '../utils/route_transitions.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BaselineScreen extends StatefulWidget {
   const BaselineScreen({super.key});
@@ -153,40 +154,47 @@ class _BaselineScreenState extends State<BaselineScreen> {
     });
   }
 
-  void _saveBaseline() {
-    final state = Provider.of<FinanceState>(context, listen: false);
-    double income = double.tryParse(_incomeController.text) ?? state.monthlyIncome;
-    double subs = double.tryParse(_subsController.text) ?? state.subscriptions;
-    double commute = double.tryParse(_commuteController.text) ?? state.dailyCommute;
+void _saveBaseline() async {
+  final state = Provider.of<FinanceState>(context, listen: false);
 
-    // Auto-push any pending goal input the user typed but didn't tap "+ Add Goal"
-    final pendingName = _goalNameController.text.trim();
-    final pendingTarget = double.tryParse(_goalTargetController.text) ?? 0.0;
-    if (pendingName.isNotEmpty && pendingTarget > 0) {
-      int months = _calculatedMonths;
-      if (months < 1) months = 1;
-      final headStart = pendingTarget / months;
-      _tempGoals.add(Goal(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: pendingName,
-        targetAmount: pendingTarget,
-        monthsToAchieve: months,
-        savedAmount: headStart, // 1-month head-start
-      ));
-    }
+  double income = double.tryParse(_incomeController.text) ?? state.monthlyIncome;
+  double subs = double.tryParse(_subsController.text) ?? state.subscriptions;
+  double commute = double.tryParse(_commuteController.text) ?? state.dailyCommute;
 
-    state.updateBaseline(income, subs, commute);
-    state.replaceGoals(_tempGoals);
+  // Auto-push any pending goal input
+  final pendingName = _goalNameController.text.trim();
+  final pendingTarget = double.tryParse(_goalTargetController.text) ?? 0.0;
 
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    } else {
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const DashboardScreen()), (route) => false);
-      }
-    }
+  if (pendingName.isNotEmpty && pendingTarget > 0) {
+    int months = _calculatedMonths;
+    if (months < 1) months = 1;
+
+    final headStart = pendingTarget / months;
+
+    _tempGoals.add(Goal(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: pendingName,
+      targetAmount: pendingTarget,
+      monthsToAchieve: months,
+      savedAmount: headStart,
+    ));
   }
 
+  state.updateBaseline(income, subs, commute);
+  state.replaceGoals(_tempGoals);
+
+  // 🔥🔥🔥 THIS IS THE IMPORTANT PART 🔥🔥🔥
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('baselineComplete', true);
+
+  if (!mounted) return;
+
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const DashboardScreen()),
+    (route) => false,
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
