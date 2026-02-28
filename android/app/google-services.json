@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "114481393624",
+    "project_id": "finepocket-3e9e3",
+    "storage_bucket": "finepocket-3e9e3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114481393624:android:7adc77998aa64a908a0cad",
+        "android_client_info": {
+          "package_name": "com.soham.finepocket.fine_pocket_mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "114481393624-v2r23v04hc4majh4i62nip199bv7a747.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.soham.finepocket.fine_pocket_mobile",
+            "certificate_hash": "0431b6bfac1e36fba04c54c8373a407833da517e"
+          }
+        },
+        {
+          "client_id": "114481393624-virqn0k49ifab2mjtotik2geedgmdrt8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvfu5FZaoDRDtO2MmTfAL1wQlEfZsWY-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "114481393624-virqn0k49ifab2mjtotik2geedgmdrt8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
