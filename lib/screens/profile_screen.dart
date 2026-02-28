@@ -135,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await GoogleSignIn.instance.signOut();
       await FirebaseAuth.instance.signOut();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const FinePocketApp(isFirstTime: false)), (route) => false);
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const FinePocketApp()), (route) => false);
       }
     } catch (e) {
       debugPrint('🔴 Logout error: $e');
