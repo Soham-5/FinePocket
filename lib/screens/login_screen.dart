@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../utils/route_transitions.dart';
 import 'guest_name_screen.dart';
 
@@ -13,6 +14,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
+  final FirestoreService _firestoreService = FirestoreService();
   bool _isGoogleLoading = false;
   bool _isGuestLoading = false;
 
@@ -20,8 +22,12 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isGoogleLoading = true);
     
     try {
-      final user = await _authService.signInWithGoogle();
-      if (user == null && mounted) {
+      final userCredential = await _authService.signInWithGoogle();
+      if (userCredential != null) {
+        // 🔥 Immediately migrate any local shared_preferences data to Firestore
+        await _firestoreService.migrateLocalToCloud();
+        debugPrint('✅ Post-login cloud sync triggered.');
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Sign in failed or canceled by user.'),

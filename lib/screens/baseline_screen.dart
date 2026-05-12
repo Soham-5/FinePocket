@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/finance_state.dart';
 import '../models/goal.dart';
+import '../models/user_model.dart';
 import '../theme/app_theme.dart';
 import '../screens/dashboard_screen.dart';
-import '../utils/route_transitions.dart';
+import '../services/firestore_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BaselineScreen extends StatefulWidget {
   const BaselineScreen({super.key});
@@ -62,6 +64,7 @@ class _BaselineScreenState extends State<BaselineScreen> {
     _goalTargetController.addListener(_onInputChanged);
     _goalMonthsController.addListener(_onInputChanged);
   }
+
 
   void _onInputChanged() {
     setState(() {}); // Re-trigger build to update feasibility button state
@@ -158,6 +161,7 @@ void _saveBaseline() async {
   final state = Provider.of<FinanceState>(context, listen: false);
 
   double income = double.tryParse(_incomeController.text) ?? state.monthlyIncome;
+  double balance = double.tryParse(_balanceController.text) ?? state.safeBalance;
   double subs = double.tryParse(_subsController.text) ?? state.subscriptions;
   double commute = double.tryParse(_commuteController.text) ?? state.dailyCommute;
 
@@ -183,9 +187,23 @@ void _saveBaseline() async {
   state.updateBaseline(income, subs, commute);
   state.replaceGoals(_tempGoals);
 
-  // 🔥🔥🔥 THIS IS THE IMPORTANT PART 🔥🔥🔥
+  // 🔥 Save locally (shared_preferences) — used as fallback for guests
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('baselineComplete', true);
+
+  // 🔥 Also sync to Firestore if the user is a real (non-anonymous) account
+  final firebaseUser = FirebaseAuth.instance.currentUser;
+  if (firebaseUser != null && !firebaseUser.isAnonymous) {
+    final firestoreService = FirestoreService();
+    final userModel = UserModel(
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName,
+      baselineBudget: income,
+      currentBalance: balance,
+    );
+    await firestoreService.syncUserToCloud(userModel);
+    debugPrint('✅ Baseline synced to Firestore.');
+  }
 
   if (!mounted) return;
 

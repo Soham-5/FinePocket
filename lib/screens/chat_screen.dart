@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chat_message.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../state/finance_state.dart';
+import '../services/chat_service.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -15,7 +17,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final ApiService _apiService = ApiService();
+  final ChatService _chatService = ChatService();
   bool _isTyping = false;
 
   void _sendMessage() async {
@@ -26,7 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
     
     final state = Provider.of<FinanceState>(context, listen: false);
 
-    // Call state
+    // 1. Add User message to local state immediately
     state.addChatMessage('user', text);
     
     setState(() {
@@ -35,21 +37,29 @@ class _ChatScreenState extends State<ChatScreen> {
     
     _scrollToBottom();
 
-    // Prepare history for API
-    List<Map<String, dynamic>> history = state.chatHistory.map((m) => {
-      "role": m['role'], 
-      "content": m['content']
-    }).toList();
+    try {
+      // 2. Prepare history in the format Vercel/Gemini expects
+      // We map 'content' from your state to 'text' for the API
+      List<Map<String, dynamic>> history = state.chatHistory.map((m) => {
+        "role": m['role'] == 'model' ? 'model' : 'user', 
+        "text": m['content'] ?? ""
+      }).toList();
 
-    // Call API
-    String rawReply = await _apiService.getChatResponse(text, history, state);
-    state.addChatMessage('model', rawReply);
+      // 3. Call the new Cloud Service
+      // It handles the UID and Vercel connection automatically
+      String rawReply = await _chatService.sendMessage(text, history);
 
-    setState(() {
-      _isTyping = false;
-    });
-    
-    _scrollToBottom();
+      // 4. Add FinBot's reply to state
+      state.addChatMessage('model', rawReply);
+
+    } catch (e) {
+      state.addChatMessage('model', "ALERT: My uplink is failing. Check your Vercel logs, Engineer.");
+    } finally {
+      setState(() {
+        _isTyping = false;
+      });
+      _scrollToBottom();
+    }
   }
 
   void _triggerFlexFund(double amount) {

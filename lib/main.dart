@@ -9,7 +9,9 @@ import 'theme/app_theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/baseline_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/guest_name_screen.dart';
+import 'services/firestore_service.dart';
+import 'models/user_model.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,67 +41,109 @@ class FinePocketApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<SharedPreferences>(
-      future: SharedPreferences.getInstance(),
-      builder: (context, prefsSnapshot) {
-        if (!prefsSnapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: AppTheme.background,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.neonCyan,
-              ),
-            ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScaffold();
+        }
+
+        final firebaseUser = authSnapshot.data;
+
+        // ─────────────────────────────────────────────────────────
+        // 🔹 CASE 1: Signed-in Firebase user (Google / Phone)
+        // ─────────────────────────────────────────────────────────
+        if (firebaseUser != null && !firebaseUser.isAnonymous) {
+          return FutureBuilder<void>(
+            future: _firestoreService.migrateLocalToCloud(),
+            builder: (context, migrationSnapshot) {
+              if (migrationSnapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return const _LoadingScaffold();
+              }
+
+              // After migration attempt, stream Firestore for real-time data
+              return StreamBuilder<UserModel?>(
+                stream: _firestoreService.streamUserStats(),
+                builder: (context, userSnapshot) {
+                  if (userSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const _LoadingScaffold();
+                  }
+
+                  final userData = userSnapshot.data;
+                  // If cloud doc exists and has a budget set, baseline is done
+                  final bool baselineDone =
+                      userData != null && userData.baselineBudget > 0;
+
+                  return baselineDone
+                      ? const DashboardScreen()
+                      : const BaselineScreen();
+                },
+              );
+            },
           );
         }
 
-        final prefs = prefsSnapshot.data!;
-        final guestName = prefs.getString('guestName');
-        final baselineComplete =
-            prefs.getBool('baselineComplete') ?? false;
-
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, authSnapshot) {
-            if (authSnapshot.connectionState ==
-                ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: AppTheme.background,
-                body: Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.neonCyan,
-                  ),
-                ),
-              );
+        // ─────────────────────────────────────────────────────────
+        // 🔹 CASE 2 & 3: Guest / Anonymous / No auth
+        //    → Fall back to shared_preferences
+        // ─────────────────────────────────────────────────────────
+        return FutureBuilder<SharedPreferences>(
+          future: SharedPreferences.getInstance(),
+          builder: (context, prefsSnapshot) {
+            if (!prefsSnapshot.hasData) {
+              return const _LoadingScaffold();
             }
 
-            final firebaseUser = authSnapshot.data;
+            final prefs = prefsSnapshot.data!;
+            // guest_name is the key written by GuestNameScreen
+            final guestName = prefs.getString('guest_name') ??
+                prefs.getString('guestName');
+            final baselineComplete =
+                prefs.getBool('baselineComplete') ?? false;
 
-            // 🔹 CASE 1: Logged-in Firebase user
-            if (firebaseUser != null) {
+            // Anonymous Firebase user or local guest with a name set
+            if (firebaseUser != null || guestName != null) {
               return baselineComplete
                   ? const DashboardScreen()
                   : const BaselineScreen();
             }
 
-            // 🔹 CASE 2: Guest user
-            if (guestName != null) {
-              return baselineComplete
-                  ? const DashboardScreen()
-                  : const BaselineScreen();
-            }
-
-            // 🔹 CASE 3: Brand new user → SHOW LOGIN
+            // Brand-new user → show login
             return const LoginScreen();
-
           },
         );
       },
+    );
+  }
+}
+
+/// Reusable loading indicator matching the app theme.
+class _LoadingScaffold extends StatelessWidget {
+  const _LoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppTheme.background,
+      body: Center(
+        child: CircularProgressIndicator(
+          color: AppTheme.neonCyan,
+        ),
+      ),
     );
   }
 }
